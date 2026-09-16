@@ -1,0 +1,49 @@
+# --- trace-bench ------------------------------------------------------------
+# Generated data never enters version control (PRD non-negotiable). Corpora and
+# every binary run artifact live in object storage or the published dataset;
+# the repository carries code, configuration and the record of a run.
+corpora/
+data/
+*.parquet
+*.npz
+*.npy
+*.gz
+*.jsonl
+*.log
+
+# Committed fixtures are the one exception: small JSON records that pin the
+# xs fixture's checksums and schema samples.
+!tests/fixtures/*.json
+
+# Private-side material must never be here even by accident.
+*.tfvars
+denylist*.json
+.env
+.envrc
+
+# --- Python -------------------------------------------------------------------
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+.ipynb_checkpoints
+
+# --- OS / editors ---------------------------------------------------------------
+.DS_Store
+._*
+.idea/
+.vscode/
+.claude/
