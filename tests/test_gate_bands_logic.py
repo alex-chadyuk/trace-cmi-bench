@@ -24,7 +24,8 @@ def test_gate_bands_logic():
 
 
 def test_select_tau_prefers_larger_on_ties():
-    assert select_tau({1e-5: 0.5, 3e-5: 0.9, 1e-4: 0.9, 1e-3: 0.2}) == 1e-4
+    c = {t: {"f1": v, "precision": 0.0, "recall": 0.0} for t, v in {1e-5: 0.5, 3e-5: 0.9, 1e-4: 0.9, 1e-3: 0.2}.items()}
+    assert select_tau(c) == 1e-4
 
 
 def test_truth_mapping_restricts_to_the_window():

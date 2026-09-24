@@ -23,8 +23,9 @@ The corpus is written in the benchmark's method-readable views layout
 so `pretrain` and `discover` run on it unchanged. The truth (D-CB-13) lives
 outside the method-readable set under `truth/`: for the first `--truth-head`
 sequences of `val` and `test`, every position pair `(i, j)` with
-`1 <= j − i <= h` carries the mean over 10 uniform replacements `u` of
-`KL(P(X_j | x_<j) || P(X_j | x_<j, x_i := u))` in the paper's argument order;
+`1 <= j − i <= h` carries the Bernoulli KL between the event distributions of
+`E_j = 1{X_j = x_j}`, factual first and the mixture over 10 uniform
+replacements of `x_i` second (D-CB-13 as amended 2026-09-24);
 an edge is `kl > δ = 0.05`. The exact conditional entropy of every generated
 sequence is stored too, for the gate's oracle score (D-CB-7).
 """
@@ -55,6 +56,14 @@ TRUTH_BATCH = 128
 
 class GeneratorRefusal(RuntimeError):
     pass
+
+
+def bernoulli_kl(a, b):
+    """`KL(Bern(a) || Bern(b))` in nats, float64, inputs in (0, 1); the probability of an
+    observed token under a softmax is never exactly 0 or 1 in float64 at these scales."""
+    a = np.clip(a, 1e-300, 1 - 1e-16)
+    b = np.clip(b, 1e-300, 1 - 1e-16)
+    return a * np.log(a / b) + (1.0 - a) * np.log((1.0 - a) / (1.0 - b))
 
 
 class SCM:
@@ -142,25 +151,34 @@ class SCM:
         h = float(np.concatenate(ents)[:n_positions].mean())
         return {"redundancy": 1.0 - h / math.log(self.V), "mean_entropy": h, "n_positions": int(min(n_positions, n_seq * L))}
 
-    # --- exact truth (D-CB-13) ----------------------------------------------------------------
+    # --- exact truth (D-CB-13, amended 2026-09-24) -------------------------------------------------
     def truth(self, x, delta, n_counterfactuals, rng):
-        """For every `(i, j)` with `1 <= j − i <= h` (0-based positions): the mean KL over
-        `n_counterfactuals` uniform replacements of `x_i`, paper order KL(orig || do).
+        """For every `(i, j)` with `1 <= j − i <= h` (0-based positions): the Bernoulli KL
+        between the event distributions of `E_j = 1{X_j = x_j}` — factual
+        `p = P(X_j = x_j | x_<j)` first, the counterfactual mixture
+        `q = mean_u P(X_j = x_j | x_<j, x_i := u)` over `n_counterfactuals` uniform `u` second
+        (paper E.1: the KL "between post-intervention and observational distributions of
+        E_t", the expectation over the do-operator inside as in Eq. 9). The 2026-09-24
+        gate attempt had used the full categorical KL, which marks 68 % of pairs as edges;
+        the Bernoulli reading gives 15 % with the note's lag-1 share (findings/gate-attempt-1-26-09-24.md).
         Returns arrays `seq, i, j, kl` (all candidate pairs) and the boolean edge mask."""
         n, L = x.shape
         seqs, iis, jjs, kls = [], [], [], []
+        rows = np.arange(n)
         for j in range(1, L):
             ctx = self._context(x, j)                                   # [n, h]
             base = self.log_softmax(self.logits(ctx))                   # [n, V]
-            p = np.exp(base)
+            obs = x[:, j]
+            p_obs = np.exp(base[rows, obs])                             # factual probability of the observed token
             for k in range(1, min(self.h, j) + 1):
                 i = j - k
                 col = self.h - k
                 u = rng.integers(0, self.V, size=(n, n_counterfactuals))
                 cf = np.repeat(ctx, n_counterfactuals, axis=0)          # [n*C, h]
                 cf[:, col] = u.ravel()
-                q = self.log_softmax(self.logits(cf)).reshape(n, n_counterfactuals, self.V)
-                kl = (p[:, None, :] * (base[:, None, :] - q)).sum(-1).mean(1)   # KL(p || q_u), mean over u
+                lq = self.log_softmax(self.logits(cf)).reshape(n, n_counterfactuals, self.V)
+                q_obs = np.exp(lq[rows[:, None], np.arange(n_counterfactuals)[None, :], obs[:, None]]).mean(1)
+                kl = bernoulli_kl(p_obs, q_obs)                         # KL_B(p || q_bar)
                 seqs.append(np.arange(n)); iis.append(np.full(n, i)); jjs.append(np.full(n, j)); kls.append(kl)
         seq = np.concatenate(seqs); i_ = np.concatenate(iis); j_ = np.concatenate(jjs); kl = np.concatenate(kls)
         return {"seq": seq.astype(np.int32), "i": i_.astype(np.int16), "j": j_.astype(np.int16),

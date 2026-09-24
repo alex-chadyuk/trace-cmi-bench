@@ -42,7 +42,13 @@ def test_selfcheck_smoke(tmp_path):
     assert set(rep["test"]["arms"]) == {"faithful/library", "faithful/paper"}
     lib = rep["test"]["arms"]["faithful/library"]
     assert str(GATE_TAU_PRINTED) in lib["curve"] and 0 <= lib["f1_selected_tau"] <= 1
-    assert set(rep["per_lag_recall"]) == {str(k) for k in range(1, 12)}
+    assert set(lib["curve"][str(GATE_TAU_PRINTED)]) == {"precision", "recall", "f1"}
+    assert set(lib["precision_recall_selected"]) == {"precision", "recall"}
+    assert set(rep["per_lag_recall"]) == {"1", "2", "3"}                 # the truth's own lag range h = 3, not --max-lag
+    import numpy as np
+    m = np.load(out / "matrices-test.npz")
+    assert set(m.files) == {"seq", "j", "q", "faithful_library", "faithful_paper"} and len(m["seq"]) > 0
+    assert (m["q"] > m["j"]).all() and np.isfinite(m["faithful_library"]).all()
     assert rep["eps_hat"]["exact"] is not None and rep["eps_hat"]["entropy_exact"] > 0
     freeze = read_json(out / "freeze.json")
     assert freeze["model_sha256"] == rep["model_sha256"] and set(freeze["cells"]) == set(rep["test"]["arms"])
