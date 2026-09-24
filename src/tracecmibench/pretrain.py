@@ -114,7 +114,7 @@ def pretrain(args, out_dir):
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         opt.step()
         tokens_seen += n
-        running += float(loss)
+        running += float(loss.detach())
         running_n += 1
     train_wall = time.monotonic() - t0
     vloss, vn = validate(model, val, args.batch_size, args.val_batches, device, args.amp)
