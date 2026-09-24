@@ -38,7 +38,7 @@ record; the public state is what `RUN.md` records:
 | M2 | decoder backbone, batching, `pretrain`, entropy floor | built |
 | M3 | the paper's synthetic generator and its exact interventional truth | built |
 | M4 | staircase, probe, statistics, projection, selection, prediction writer | built |
-| M5 | `selfcheck`: the reproduction gate, run once on a cloud instance and committed under `gate/` | code built; the gate job has not run |
+| M5 | `selfcheck`: the reproduction gate, run once on a cloud instance and committed under `gate/` | attempt 1 (2026-09-24) **failed** on a defective truth statistic, corrected as D-CB-13 amended (`findings/gate-attempt-1-26-09-24.md`); attempt 2 pending |
 | M6 | `discover`, `sweep`, `freeze`, `scoresweep`, `annotate`, `report` | — |
 | M7+ | the benchmark ladder xs → s → m → l → xl | — |
 

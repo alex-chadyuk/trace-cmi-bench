@@ -34,16 +34,23 @@ def test_decay_makes_lag_one_dominant():
     assert rate[1] > rate[2] >= rate[4]
 
 
-def test_kl_is_paper_order():
-    """KL(p || q) with p the factual conditional: hand-computed on one pair."""
+def test_kl_is_bernoulli_of_the_event_with_the_mixture_inside():
+    """KL_B(p || q_bar): p the factual probability of the observed token, q_bar its mean
+    probability over the counterfactual draws — hand-computed on one pair (D-CB-13 as amended)."""
     scm = gen.SCM(6, history=1, sparsity=0.0, w_scale=2.0, decay_rate=1.0, embed_dim=2, hidden=3, seed=4)
     x = np.array([[1, 2]])
     rng = np.random.default_rng(0)
     t = scm.truth(x, 0.0, 10, rng)
     # recompute: context of position 1 is [1]; replace it by u ~ U(6), ten draws with the same stream
     rng2 = np.random.default_rng(0)
-    base = scm.log_softmax(scm.logits(np.array([[1]])))[0]
+    p = np.exp(scm.log_softmax(scm.logits(np.array([[1]])))[0, 2])
     u = rng2.integers(0, 6, size=(1, 10)).ravel()
-    q = scm.log_softmax(scm.logits(u[:, None]))
-    kl = (np.exp(base)[None, :] * (base[None, :] - q)).sum(-1).mean()
+    q = np.exp(scm.log_softmax(scm.logits(u[:, None]))[:, 2]).mean()
+    kl = p * np.log(p / q) + (1 - p) * np.log((1 - p) / (1 - q))
     assert abs(t["kl"][0] - kl) < 1e-12
+    # the Bernoulli KL is a projection of the categorical one: never larger
+    base = scm.log_softmax(scm.logits(np.array([[1]])))[0]
+    lq = scm.log_softmax(scm.logits(u[:, None]))
+    cat = (np.exp(base)[None, :] * (base[None, :] - lq)).sum(-1).mean()
+    assert kl <= cat + 1e-12
+    assert gen.bernoulli_kl(np.array([0.3]), np.array([0.3]))[0] == 0.0 and gen.bernoulli_kl(np.array([0.9]), np.array([0.1]))[0] > 1.0

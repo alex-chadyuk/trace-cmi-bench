@@ -125,19 +125,21 @@ def probe_split(model, vocab, corpus, split, truth, args, device):
 
 
 def f1_curve(records, arm, taus, vocab, max_lag):
-    """Mean per-sequence directed F1 of the Def. 3.2 projection at every τ."""
+    """Mean per-sequence directed precision / recall / F1 of the Def. 3.2 projection at every τ."""
     out = {}
     for tau in taus:
-        f1s = []
+        acc = {"precision": [], "recall": [], "f1": []}
         for r in records:
             pred = sequence_type_edges(r["stats"][arm], r["window_tokens"], vocab, tau, max_lag)
-            f1s.append(f1_at(pred, r["truth_edges"])["f1"])
-        out[tau] = float(np.mean(f1s)) if f1s else 0.0
+            m = f1_at(pred, r["truth_edges"])
+            for k in acc:
+                acc[k].append(m[k])
+        out[tau] = {k: (float(np.mean(v)) if v else 0.0) for k, v in acc.items()}
     return out
 
 
 def per_lag_recall(records, arm, tau, max_lag):
-    """Position-level recall of the truth pairs at each lag, at threshold τ."""
+    """Position-level recall of the truth pairs at each lag `1..max_lag`, at threshold τ."""
     hit = {k: [0, 0] for k in range(1, max_lag + 1)}
     for r in records:
         S = r["stats"][arm]
@@ -151,9 +153,24 @@ def per_lag_recall(records, arm, tau, max_lag):
 
 
 def select_tau(curve):
-    """Argmax over the grid; ties → the larger τ."""
-    best = max(curve.values())
-    return max(t for t, v in curve.items() if v == best)
+    """Argmax of F1 over the grid; ties → the larger τ."""
+    best = max(v["f1"] for v in curve.values())
+    return max(t for t, v in curve.items() if v["f1"] == best)
+
+
+def write_matrices(path, records, arms):
+    """The per-sequence statistic matrices of a split as a flat cell table (the instrumentation
+    that lets a corrected truth be re-scored without re-probing)."""
+    seq, jj, qq = [], [], []
+    vals = {arm: [] for arm in arms}
+    for s, r in enumerate(records):
+        S = r["stats"][arms[0]]
+        j, q = np.nonzero(~np.isnan(S))
+        seq.append(np.full(len(j), s, dtype=np.int32)); jj.append(j.astype(np.int16)); qq.append(q.astype(np.int16))
+        for arm in arms:
+            vals[arm].append(r["stats"][arm][j, q].astype(np.float32))
+    np.savez(path, seq=np.concatenate(seq), j=np.concatenate(jj), q=np.concatenate(qq),
+             **{arm.replace("/", "_"): np.concatenate(vals[arm]) for arm in arms})
 
 
 def assertions_for(f1_printed, f1_selected):
@@ -201,27 +218,33 @@ def run_gate(args, out_dir):
     corpus = Corpus(scm_dir, "end", "request")
     vocab = Vocab.from_model_vocab(corpus.vocab_json())
     # 3. validation probe, τ chosen blind per arm, in-process freeze
-    val_recs, val_meta = probe_split(model, vocab, corpus, "val", load_truth(scm_dir, "val"), args, device)
+    val_truth = load_truth(scm_dir, "val")
+    truth_h = int(val_truth["history"])                     # per-lag recall is reported over the truth's own lag range
+    val_recs, val_meta = probe_split(model, vocab, corpus, "val", val_truth, args, device)
+    write_matrices(out_dir / "matrices-val.npz", val_recs, GATE_ARMS)
     freeze = {"model_sha256": pre["model_sha256"], "c": args.context, "N": args.particles, "g": args.guidance, "cells": {}}
     curves = {}
     for arm in GATE_ARMS:
         curves[arm] = f1_curve(val_recs, arm, GATE_TAU_GRID, vocab, args.max_lag)
         freeze["cells"][arm] = {"tau": select_tau(curves[arm])}
-        log({"event": "val_curve", "arm": arm, "tau_selected": freeze["cells"][arm]["tau"], "f1_at_selected": curves[arm][freeze["cells"][arm]["tau"]]})
+        log({"event": "val_curve", "arm": arm, "tau_selected": freeze["cells"][arm]["tau"], **curves[arm][freeze["cells"][arm]["tau"]]})
     write_json(out_dir / "freeze.json", freeze)
     report["val"] = {"meta": {k: v for k, v in val_meta.items()}, "curves": {a: {str(t): v for t, v in c.items()} for a, c in curves.items()}}
     del val_recs
     # 4. one test read
     test_recs, test_meta = probe_split(model, vocab, corpus, "test", load_truth(scm_dir, "test"), args, device)
+    write_matrices(out_dir / "matrices-test.npz", test_recs, GATE_ARMS)
     report["test"] = {"meta": test_meta, "arms": {}}
     for arm in GATE_ARMS:
         tau_star = freeze["cells"][arm]["tau"]
         curve = f1_curve(test_recs, arm, sorted(set(GATE_TAU_GRID) | {tau_star, GATE_TAU_PRINTED}), vocab, args.max_lag)
         report["test"]["arms"][arm] = {
-            "tau_selected": tau_star, "f1_selected_tau": curve[tau_star], "f1_printed_tau": curve[GATE_TAU_PRINTED],
+            "tau_selected": tau_star, "f1_selected_tau": curve[tau_star]["f1"], "f1_printed_tau": curve[GATE_TAU_PRINTED]["f1"],
+            "precision_recall_selected": {k: curve[tau_star][k] for k in ("precision", "recall")},
+            "precision_recall_printed": {k: curve[GATE_TAU_PRINTED][k] for k in ("precision", "recall")},
             "curve": {str(t): v for t, v in curve.items()},
-            "per_lag_recall_selected": per_lag_recall(test_recs, arm, tau_star, args.max_lag),
-            "per_lag_recall_printed": per_lag_recall(test_recs, arm, GATE_TAU_PRINTED, args.max_lag),
+            "per_lag_recall_selected": per_lag_recall(test_recs, arm, tau_star, truth_h),
+            "per_lag_recall_printed": per_lag_recall(test_recs, arm, GATE_TAU_PRINTED, truth_h),
         }
     g = report["test"]["arms"][GATE_ARM]
     report["tau_selected"] = g["tau_selected"]
