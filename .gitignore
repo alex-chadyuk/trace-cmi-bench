@@ -1,18 +1,24 @@
-# --- trace-bench ------------------------------------------------------------
-# Generated data never enters version control (PRD non-negotiable). Corpora and
-# every binary run artifact live in object storage or the published dataset;
-# the repository carries code, configuration and the record of a run.
+# --- trace-cmi-bench --------------------------------------------------------
+# Generated data and binary run artifacts never enter version control (PRD
+# non-negotiable 6). Corpora come from the published dataset; models, score
+# matrices, prediction and ranking files live in object storage under content
+# hashes; the repository carries code, configuration and the record of a run.
 corpora/
 data/
+out/
 *.parquet
 *.npz
 *.npy
+*.pt
 *.gz
 *.jsonl
 *.log
+prediction-*.json
+ranking-*.json
+val-table.json
 
 # Committed fixtures are the one exception: small JSON records that pin the
-# xs fixture's checksums and schema samples.
+# fixture corpus's checksums and schema samples.
 !tests/fixtures/*.json
 
 # Private-side material must never be here even by accident.
