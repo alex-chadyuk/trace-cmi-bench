@@ -1,0 +1,8 @@
+# Runtime deps. The benchmark package is pinned to the release tag whose corpora
+# this repository scores (one tool version per report cell; `report` refuses a
+# mix). `sid` pulls gadjid for SID / AID on the observable twin.
+torch>=2.0
+numpy>=2.0,<3
+pyarrow>=25.0,<26
+huggingface_hub>=0.30
+trace-bench[sid] @ git+https://github.com/alex-chadyuk/trace-bench@v0.3.0

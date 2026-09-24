@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trace-cmi-bench"
+version = "0.1.0"
+description = "Clean-room TRACE (Math & Lienhart 2026) benchmarked on the trace-bench corpora"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.0",
+    "numpy>=2.0,<3",
+    "pyarrow>=25.0,<26",
+    "huggingface_hub>=0.30",
+    "trace-bench[sid] @ git+https://github.com/alex-chadyuk/trace-bench@v0.3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+packages = ["tracecmibench"]
+package-dir = { "" = "src" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
