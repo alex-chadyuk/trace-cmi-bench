@@ -56,6 +56,7 @@ Each entry states what it **follows** and what it **deviates from**. Dated
 | D-CB-18 | one thresholded edge list | two prediction files per read: `prediction-<grain>-<agg>.json` (edges with score > τ, for the structural axes) and `ranking-<grain>-<agg>.json` (every scored pair, for AUROC/AP), plus per-lag rankings — because the benchmark's scorer treats every listed edge as present. |
 | D-CB-19 | `N = 128` particles (Table 2) | `N` is swept on {2, 8, 32, 128} on validation and frozen with τ and `c`; the note found the particle average saturated at `N = 2`. The gate runs `N = 128`. |
 | D-CB-20 | probe precision unstated (App. C) | **2026-09-24, before attempt 3:** `--probe-amp {none,bf16}` selects the autocast mode of the probe's forward passes independently of `--amp` (pretraining). Attempts 1–2 probed under bf16 autocast because one flag drove both stages; the predecessor's arm-C runs probed in full precision. Tested on the frozen attempt-2 model: the precision changes individual cells but not the noise floor (`findings/gate-verification-vs-trace-cmi-26-09-24.md` §4). Attempt 3 probes in full precision (`none`) for parity; the report records `probe_amp`. |
+| D-CB-21 | one probing pass, one thresholded output | **2026-09-24 (M6):** the freeze selects `(c, N, τ)` per sub-arm, so a test read (`discover --aggs … --taus …`) writes the sub-arms whose frozen `(c, N)` equal the pass's; sub-arms frozen at different `(c, N)` take separate reads. Per-lag recall is scored from per-lag **thresholded** prediction files (`prediction-<grain>-<agg>-lag<k>.json`, `lag_max > τ`) beside the per-lag rankings of D-CB-18. In the validation sweep the effective guidance is `g = min(--guidance, c)` (plan §3, D-CB-9). `annotate` calls `tracebench.score.score_corpus` — the function behind the benchmark's scoring command — and writes its output verbatim as `score.json`; a fixture test asserts byte identity with a direct call. |
 
 Deviations for later arms (`prior/topology`, the six shared-model baselines,
 `improve/*`, `baseline/causalnet`) are numbered in the pre-registered plan of
@@ -67,7 +68,7 @@ each arm before its code exists.
   `tests/test_no_defaults.py` (no algorithm knob has a default) and
   `tests/test_repo_hygiene.py` (no private identifier, location or binary in
   any tracked file) fail the build.
-- **Gate (M5):** `gate/<date>-gate-report.json` committed with
+- **Gate (M5):** `gate/<date>-<run>-gate-report.json` committed with
   `passed: true` and the `engine_sha256` of the probing modules; `discover`
   and `sweep` refuse any benchmark corpus without a passing report whose hash
   equals the current engine hash. Scenario 2 is one-sided since 2026-09-24
@@ -75,6 +76,10 @@ each arm before its code exists.
 - **Per run:** the executing host's log shows the command exiting with
   status 0 and the output sync completing; `run/*.json` carry every
   scenario-25 field; a registry row lands below.
+- **M6 (`tests/test_m6_pipeline.py`):** the fixture runs pretrain → `sweep`
+  → `scoresweep` → `freeze` in a git repository → `discover --split test`
+  under the freeze → `annotate` → `report`; the refusals of scenarios 4, 9,
+  12, 14, 22 and 23 and the freeze overwrite guard are asserted.
 - **Per rung:** `report` builds every cell from five seeds or records the
   reason; the paper-vs-library difference table exists per axis and per lag;
   every faithful bidirected column carries the structural-limitation note;

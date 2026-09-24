@@ -39,7 +39,7 @@ record; the public state is what `RUN.md` records:
 | M3 | the paper's synthetic generator and its exact interventional truth | built |
 | M4 | staircase, probe, statistics, projection, selection, prediction writer | built |
 | M5 | `selfcheck`: the reproduction gate, run once on a cloud instance and committed under `gate/` | **passed** — attempt 3 (2026-09-24, `gate/2026-09-24-r3-gate-report.json`, engine `39aae1a5`): R 0.5806, library F1 0.352 at the printed threshold (must not replicate, ≤ 0.55) and 0.902 at the blind-selected threshold (≥ 0.86), the replication note's numbers. Attempts 1–2 are committed beside it (`findings/gate-attempt-{1,2,3}-26-09-24.md`); the engine is verified curve by curve against the predecessor's runs (`findings/gate-verification-vs-trace-cmi-26-09-24.md`) |
-| M6 | `discover`, `sweep`, `freeze`, `scoresweep`, `annotate`, `report` | — |
+| M6 | `discover`, `sweep`, `freeze`, `scoresweep`, `annotate`, `report`; the pre-registered `plans/faithful-plan.md` (committed before the code); infra edit (c) | built 2026-09-24 (`tests/test_m6_pipeline.py`); first xs replica authored |
 | M7+ | the benchmark ladder xs → s → m → l → xl | — |
 
 ## Install
@@ -67,7 +67,7 @@ build otherwise), so a run's `run/arguments.json` reconstructs it exactly.
 | `prepare` | report the substrate the method can see: rows per split, vocabulary size, length quantiles, entropy floor |
 | `pretrain` | train one decoder on a corpus's training split by next-token prediction; report the oracle score |
 | `selfcheck` | the reproduction gate: the paper's synthetic experiment against the registered bands; licenses everything downstream |
-| `discover` | run one named arm on one corpus with one frozen model; write the score matrices and the prediction files |
+| `discover` | run one named arm on one corpus with one frozen model; write the score matrices and the prediction files; a test read asserts on a committed freeze |
 | `sweep` / `freeze` | blind grid on the validation split; dated, committed record of the chosen values |
 | `scoresweep` / `annotate` | thin wrappers that call the benchmark's scorer and add provenance and coverage fields; no metric arithmetic |
 | `report` | five-seed tables per cell, paired arm-vs-faithful differences |

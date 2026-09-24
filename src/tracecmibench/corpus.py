@@ -77,5 +77,14 @@ class Corpus:
                     for row in zip(*cols):
                         yield row
 
+    @property
+    def corpus_id(self):
+        """`<rung>/<variant>/seed=<k>` when the directory follows the dataset host's layout
+        (`instances/<rung>/<variant>/seed=<k>`), else the directory name."""
+        parts = self.dir.resolve().parts
+        if len(parts) >= 4 and parts[-4] == "instances" and parts[-1].startswith("seed="):
+            return "/".join(parts[-3:])
+        return self.dir.name
+
     def __repr__(self):
         return f"Corpus({self.dir.name!r}, ordering={self.ordering!r}, grain={self.grain!r})"
