@@ -65,6 +65,7 @@ SWEEP_SCORES_NPZ_FMT = "scores-{arm}-c{c}-N{n}-{grain}.npz"     # arm with '/' -
 PREDICTION_JSON_FMT = "prediction-{grain}-{agg}.json"
 RANKING_JSON_FMT = "ranking-{grain}-{agg}.json"
 RANKING_LAG_JSON_FMT = "ranking-{grain}-{agg}-lag{lag}.json"
+PREDICTION_LAG_JSON_FMT = "prediction-{grain}-{agg}-lag{lag}.json"   # per-lag thresholded, for per-lag recall
 VAL_TABLE_JSON = "val-table.json"
 GATE_DIR = "gate"
 FREEZES_DIR = "freezes"

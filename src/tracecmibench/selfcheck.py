@@ -299,7 +299,7 @@ def main(argv=None):
     with RunRecord(args.output_folder, "selfcheck", vars(args)) as rec:
         report = run_gate(args, rec.out_dir)
         gate_dir = rec.out_dir / GATE_DIR
-        path = write_json(gate_dir / f"{report['date']}-gate-report.json", report)
+        path = write_json(gate_dir / f"{report['date']}-{Path(args.output_folder).name}-gate-report.json", report)
         log({"event": "gate", "passed": report["passed"], "report": str(path),
              "assertions": [(a["name"], a["passed"]) for a in report.get("assertions", [])]})
         rec.finish({"passed": report["passed"], "report": str(path.relative_to(rec.out_dir)),
