@@ -1,7 +1,10 @@
 """Freeze the validation-selected values of one corpus (D12; plan §4; PRD scenario 22).
 
-    python -m tracecmibench.freeze --val-table out/<scoresweep-run>/val-table.json \
+    python -m tracecmibench.freeze --val-tables out/<scoresweep-request>/val-table.json out/<scoresweep-session>/val-table.json \
         --rung xs --variant latent --seed 0 --freezes-dir freezes --output-folder out/<run>
+
+Several val tables (one per grain, as Job V writes them) are merged into one
+freeze; they must name the same corpus, model, tool version and config hash.
 
 Per `(arm, aggregation, grain)` the full-grid argmax of the scorer's directed
 F1 at the default floor over `(c, N, τ)`; ties → smaller `N`, then smaller
@@ -51,19 +54,37 @@ def freeze_name(date, rung, variant, seed):
     return f"{date}-{rung}-{variant}-s{seed}.json"
 
 
-def build_freeze(table, val_table_path, rung, variant, seed):
+def merge_tables(tables):
+    """One table from the per-grain tables of one corpus; refuses mixed corpora, models or grids."""
+    first = tables[0]
+    for t in tables[1:]:
+        for k in ("corpus_id", "model_sha256", "tool_version", "config_hash", "taus"):
+            if t.get(k) != first.get(k):
+                raise ValueError(f"val tables disagree on {k}: {first.get(k)!r} vs {t.get(k)!r}")
+    grains = []
+    for t in tables:
+        for g in t.get("grains", []):
+            if g in grains:
+                raise ValueError(f"grain {g} appears in more than one val table")
+            grains.append(g)
+    return {**first, "grains": grains, "cells": [c for t in tables for c in t["cells"]],
+            "coverage": {k: v for t in tables for k, v in t.get("coverage", {}).items()}}
+
+
+def build_freeze(table, val_table_paths, rung, variant, seed):
+    paths = [Path(p) for p in val_table_paths]
     return {
         "schema": FREEZE_SCHEMA, "rung": rung, "variant": variant, "seed": int(seed),
         "corpus_id": table.get("corpus_id"), "tool_version": table.get("tool_version"), "config_hash": table.get("config_hash"),
         "model_sha256": table.get("model_sha256"), "commit": git_commit(), "frozen_at": now_iso(),
-        "val_table_sha256": sha256_file(val_table_path), "val_table_name": Path(val_table_path).name,
+        "val_tables": [{"name": p.name, "sha256": sha256_file(p)} for p in paths],
         "taus": table.get("taus"), "grains": table.get("grains"), "cells": select_cells(table),
     }
 
 
 def run_freeze(args, rec):
-    table = read_json(args.val_table)
-    freeze = build_freeze(table, args.val_table, args.rung, args.variant, args.seed)
+    table = merge_tables([read_json(p) for p in args.val_tables])
+    freeze = build_freeze(table, args.val_tables, args.rung, args.variant, args.seed)
     date = dt.datetime.now(dt.timezone.utc).date().isoformat()
     path = Path(args.freezes_dir) / freeze_name(date, args.rung, args.variant, args.seed)
     if path.exists():
@@ -77,7 +98,7 @@ def run_freeze(args, rec):
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--val-table", required=True)
+    p.add_argument("--val-tables", required=True, nargs="+", help="one val-table.json per grain of one corpus")
     p.add_argument("--rung", required=True, choices=RUNGS)
     p.add_argument("--variant", required=True, choices=VARIANTS)
     p.add_argument("--seed", required=True, type=int, choices=SEEDS)

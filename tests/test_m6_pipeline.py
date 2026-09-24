@@ -59,7 +59,7 @@ def world(tmp_path_factory):
     repo = root / "repo"
     repo.mkdir()
     _git(["init", "-q"], repo)
-    assert fz.main(["--val-table", str(root / "scoresweep" / VAL_TABLE_JSON), "--rung", "xs", "--variant", "latent", "--seed", "0",
+    assert fz.main(["--val-tables", str(root / "scoresweep" / VAL_TABLE_JSON), "--rung", "xs", "--variant", "latent", "--seed", "0",
                     "--freezes-dir", str(repo / "freezes"), "--output-folder", str(root / "freeze-run")]) == 0
     freeze = next((repo / "freezes").glob("*-xs-latent-s0.json"))
     _git(["add", "-A"], repo)
@@ -112,8 +112,27 @@ def test_freeze_rule_and_refuses_overwrite(world, tmp_path):
         assert (cell["tau"], cell["c"], cell["N"]) == (pick["tau"], pick["c"], pick["N"]) and cell["val_directed_f1"] == best
     assert f["model_sha256"] == read_json(world["pretrain_results"])["model_sha256"] and f["corpus_id"] == world["corpus"].name
     with pytest.raises(fz.FreezeExists):
-        fz.main(["--val-table", str(world["root"] / "scoresweep" / VAL_TABLE_JSON), "--rung", "xs", "--variant", "latent", "--seed", "0",
+        fz.main(["--val-tables", str(world["root"] / "scoresweep" / VAL_TABLE_JSON), "--rung", "xs", "--variant", "latent", "--seed", "0",
                  "--freezes-dir", str(world["repo"] / "freezes"), "--output-folder", str(tmp_path / "again")])
+
+
+def test_freeze_merges_per_grain_tables(world, tmp_path):
+    t = read_json(world["root"] / "scoresweep" / VAL_TABLE_JSON)
+    parts = []
+    for grain in GRAINS:
+        part = {**t, "grains": [grain], "cells": [r for r in t["cells"] if r["grain"] == grain],
+                "coverage": {k: v for k, v in t["coverage"].items() if f"/{grain}/" in k}}
+        write_json(tmp_path / f"val-table-{grain}.json", part)
+        parts.append(str(tmp_path / f"val-table-{grain}.json"))
+    assert fz.main(["--val-tables", *parts, "--rung", "s", "--variant", "latent", "--seed", "1",
+                    "--freezes-dir", str(tmp_path / "fr"), "--output-folder", str(tmp_path / "run")]) == 0
+    merged = read_json(next((tmp_path / "fr").glob("*-s-latent-s1.json")))
+    assert merged["cells"] == world["freeze_doc"]["cells"] and merged["grains"] == list(GRAINS) and len(merged["val_tables"]) == 2
+    bad = {**t, "model_sha256": "0" * 64}
+    write_json(tmp_path / "bad.json", bad)
+    with pytest.raises(ValueError, match="disagree on model_sha256"):
+        fz.main(["--val-tables", parts[0], str(tmp_path / "bad.json"), "--rung", "s", "--variant", "latent", "--seed", "2",
+                 "--freezes-dir", str(tmp_path / "fr"), "--output-folder", str(tmp_path / "run2")])
 
 
 # --- discover: gate, freeze and the test read -------------------------------------------------------------
