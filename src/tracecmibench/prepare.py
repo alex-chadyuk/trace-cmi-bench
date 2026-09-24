@@ -11,12 +11,15 @@ operation (D-CB-16), `n_spans` quantiles, and the truncation rate at
 from __future__ import annotations
 
 import argparse
+import math
 from collections import Counter
 
 import numpy as np
 
 from .constants import GRAINS, ORDERINGS, PREPARE_JSON, SPLITS
 from .corpus import Corpus
+from .data import SequenceStore
+from .entropy import order_k_floor
 from .log import log
 from .record import RunRecord, write_json
 from .vocab import Vocab
@@ -60,7 +63,7 @@ def split_stats(corpus, vocab, split, max_len):
     }
 
 
-def prepare(corpus_dir, ordering, grain, max_len):
+def prepare(corpus_dir, ordering, grain, max_len, entropy_order):
     corpus = Corpus(corpus_dir, ordering, grain)
     vocab = Vocab.from_model_vocab(corpus.vocab_json())
     stats = corpus.export_stats()
@@ -75,6 +78,10 @@ def prepare(corpus_dir, ordering, grain, max_len):
     for split in SPLITS:
         out["splits"][split] = split_stats(corpus, vocab, split, max_len)
         log({"event": "prepare_split", "split": split, **{k: v for k, v in out["splits"][split].items() if k != "folded_pairs"}})
+    train = SequenceStore.from_corpus(corpus, "train", vocab, max_len)
+    out["entropy"] = order_k_floor(train, entropy_order, vocab.size)
+    out["entropy"]["log_alphabet"] = math.log(len(vocab.predictable_ids))
+    log({"event": "prepare_entropy", **out["entropy"]})
     return out
 
 
@@ -84,6 +91,7 @@ def build_parser():
     p.add_argument("--ordering", required=True, choices=ORDERINGS)
     p.add_argument("--grain", required=True, choices=GRAINS)
     p.add_argument("--max-len", required=True, type=int, help="cap on real tokens per sequence (D-CB-5)")
+    p.add_argument("--entropy-order", required=True, type=int, help="order k of the n-gram entropy floor (D-CB-7)")
     p.add_argument("--output-folder", required=True)
     return p
 
@@ -91,7 +99,7 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     with RunRecord(args.output_folder, "prepare", vars(args)) as rec:
-        res = prepare(args.corpus, args.ordering, args.grain, args.max_len)
+        res = prepare(args.corpus, args.ordering, args.grain, args.max_len, args.entropy_order)
         write_json(rec.out_dir / PREPARE_JSON, res)
         rec.finish({"prepare_json": PREPARE_JSON, "vocab_size": res["vocab"]["size"],
                     "rows": {s: res["splits"][s]["rows"] for s in SPLITS}})

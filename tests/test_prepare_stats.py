@@ -9,10 +9,11 @@ from tracecmibench.record import read_json
 def test_prepare_json(tmp_path):
     out = tmp_path / "prep"
     rc = prep.main(["--corpus", str(fixture_corpus("latent")), "--ordering", "end", "--grain", "request",
-                    "--max-len", "4", "--output-folder", str(out)])
+                    "--max-len", "4", "--entropy-order", "2", "--output-folder", str(out)])
     assert rc == 0
     p = read_json(out / PREPARE_JSON)
     assert p["view"] == "end-request" and p["vocab"]["size"] == 14 and p["vocab"]["n_ops"] == 6
+    assert 0.0 < p["entropy"]["entropy_floor"] < p["entropy"]["log_alphabet"] and p["entropy"]["order"] == 2
     for split, n in N_REQUESTS.items():
         s = p["splits"][split]
         assert s["rows"] == n == p["export_stats_rows"][f"end-request-{split}"]
@@ -26,7 +27,7 @@ def test_prepare_json(tmp_path):
 
 
 def test_session_grain_is_longer(tmp_path):
-    res = prep.prepare(fixture_corpus("latent"), "end", "session", 64)
+    res = prep.prepare(fixture_corpus("latent"), "end", "session", 64, 1)
     assert res["splits"]["train"]["rows"] == N_SESSIONS["train"]
-    assert res["splits"]["train"]["n_spans"]["mean"] > prep.prepare(fixture_corpus("latent"), "end", "request", 64)["splits"]["train"]["n_spans"]["mean"]
+    assert res["splits"]["train"]["n_spans"]["mean"] > prep.prepare(fixture_corpus("latent"), "end", "request", 64, 1)["splits"]["train"]["n_spans"]["mean"]
     assert res["splits"]["train"]["truncated_sequences"] == 0
