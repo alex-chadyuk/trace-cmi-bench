@@ -34,11 +34,11 @@ record; the public state is what `RUN.md` records:
 | milestone | what lands | state |
 |---|---|---|
 | M0 | scaffold: packaging, records, artifacts, hygiene and no-defaults gates, deviation register | built |
-| M1 | corpus adapter, vocabulary, prior door, `pull`, `prepare` | — |
-| M2 | decoder backbone, batching, `pretrain`, entropy floor | — |
-| M3 | the paper's synthetic generator and its exact interventional truth | — |
-| M4 | staircase, probe, statistics, projection, selection, prediction writer | — |
-| M5 | `selfcheck`: the reproduction gate, run once on a cloud instance and committed under `gate/` | — |
+| M1 | corpus adapter, vocabulary, prior door, `pull`, `prepare` | built |
+| M2 | decoder backbone, batching, `pretrain`, entropy floor | built |
+| M3 | the paper's synthetic generator and its exact interventional truth | built |
+| M4 | staircase, probe, statistics, projection, selection, prediction writer | built |
+| M5 | `selfcheck`: the reproduction gate, run once on a cloud instance and committed under `gate/` | code built; the gate job has not run |
 | M6 | `discover`, `sweep`, `freeze`, `scoresweep`, `annotate`, `report` | — |
 | M7+ | the benchmark ladder xs → s → m → l → xl | — |
 
