@@ -153,15 +153,18 @@ class DecoderLM(nn.Module):
         return (nll * keep).sum() / keep.sum(), int(keep.sum())
 
     @torch.no_grad()
-    def log_probs_at(self, ids, pad_mask, microbatch):
-        """`[B, L]` float32: entry `t >= 1` is `log p(ids[t] | ids[<t])`; entry 0 is 0.
-        Computed per microbatch of rows; the `[b, L, V]` tensor never leaves the device."""
+    def log_probs_at(self, ids, pad_mask, microbatch, targets=None):
+        """`[B, L]` float32: entry `t >= 1` is `log p(targets[t] | ids[<t])` — the observed
+        token's probability under the row's prefix (Eq. 2); `targets` defaults to `ids`
+        itself. Entry 0 is 0. Computed per microbatch of rows; the `[b, L, V]` tensor never
+        leaves the device."""
         B, L = ids.shape
+        targets = ids if targets is None else targets
         out = torch.zeros(B, L, dtype=torch.float32, device=ids.device)
         for i in range(0, B, microbatch):
             lg = self.logits(ids[i:i + microbatch], pad_mask[i:i + microbatch])
             lp = lg.log_softmax(-1)
-            out[i:i + microbatch, 1:] = lp[:, :-1].gather(-1, ids[i:i + microbatch, 1:, None]).squeeze(-1)
+            out[i:i + microbatch, 1:] = lp[:, :-1].gather(-1, targets[i:i + microbatch, 1:, None]).squeeze(-1)
             del lg, lp
         return out
 
