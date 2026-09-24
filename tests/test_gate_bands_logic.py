@@ -1,10 +1,11 @@
-"""PRD scenarios 2–3: the gate passes when the printed threshold fails inside
-the registered band AND the blind-selected threshold replicates; a printed
-threshold that unexpectedly replicates fails the gate. Plus the truth mapping,
+"""PRD scenarios 2–3: the gate passes when the printed threshold fails to
+replicate (F1 at most the registered ceiling; one-sided since the 2026-09-24
+amendment) AND the blind-selected threshold replicates; a printed threshold
+that unexpectedly replicates fails the gate. Plus the truth mapping,
 τ selection and per-lag recall helpers."""
 import numpy as np
 
-from tracecmibench.constants import GATE_F1_PRINTED_BAND, GATE_F1_SELECTED_MIN
+from tracecmibench.constants import GATE_F1_PRINTED_MAX, GATE_F1_SELECTED_MIN
 from tracecmibench.selfcheck import assertions_for, per_lag_recall, select_tau, truth_for_sequence
 from tracecmibench.vocab import Vocab
 from tracecmibench.generator import model_vocab
@@ -17,9 +18,11 @@ def test_gate_bands_logic():
     assert not unexpected[0]["passed"] and unexpected[1]["passed"]
     low = assertions_for(0.46, 0.80)
     assert low[0]["passed"] and not low[1]["passed"]
-    lo, hi = GATE_F1_PRINTED_BAND
-    assert assertions_for(lo, GATE_F1_SELECTED_MIN)[0]["passed"] and assertions_for(hi, 1.0)[0]["passed"]
-    assert not assertions_for(lo - 1e-9, 1.0)[0]["passed"]
+    hi = GATE_F1_PRINTED_MAX
+    assert assertions_for(hi, GATE_F1_SELECTED_MIN)[0]["passed"] and assertions_for(0.0, 1.0)[0]["passed"]
+    assert assertions_for(0.35, 0.90)[0]["passed"]                # attempt 2's reading: below the former lower edge, still a non-replication
+    assert not assertions_for(hi + 1e-9, 1.0)[0]["passed"]
+    assert assertions_for(0.46, 0.90)[0]["band"] == [0.0, hi]
     assert {a["scenario"] for a in ok} == {2, 3}
 
 

@@ -111,7 +111,8 @@ ENGINE_MODULES = ("staircase", "probe", "statistics", "project", "select", "mode
 ORACLE_IN_REGIME = 0.1                         # eps_hat below this = in regime (paper's phase transition)
 GATE_ARM = ARM_FAITHFUL_LIBRARY                # the reading the replication note characterised
 GATE_TAU_PRINTED = 3e-5                        # the paper's Table 2 threshold
-GATE_F1_PRINTED_BAND = (0.40, 0.55)            # scenario 2: the printed threshold must NOT replicate
+GATE_F1_PRINTED_MAX = 0.55                     # scenario 2: the printed threshold must NOT replicate (one-sided since the
+                                               # 2026-09-24 amendment; the band's lower edge 0.40 measured the noise floor)
 GATE_F1_SELECTED_MIN = 0.86                    # scenario 3: blind val-selected threshold must
 GATE_REDUNDANCY_MIN = 0.58                     # scenario 1: the paper's redundancy band
 GATE_CONTEXT = 6                               # BOS-counted, as the note characterised

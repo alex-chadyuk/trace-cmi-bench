@@ -19,7 +19,7 @@ ARGS = [
     "--val-every", "6", "--val-batches", "2", "--checkpoint-every", "6", "--entropy-order", "1",
     # probe
     "--particles", "3", "--context", "3", "--guidance", "2", "--num-sequences", "8", "--max-lag", "11",
-    "--microbatch-rows", "64", "--memory-cap-gb", "2", "--clamp-eps", "1e-9",
+    "--microbatch-rows", "64", "--memory-cap-gb", "2", "--clamp-eps", "1e-9", "--probe-amp", "none",
     "--seed", "0", "--device", "cpu",
 ]
 

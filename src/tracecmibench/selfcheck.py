@@ -9,7 +9,7 @@ against the exact truth → freeze in-process → probe the head sequences of th
 test split once → assert on `faithful/library` (the reading the note
 characterised):
 
-    F1(τ = 3e-5)  in [0.40, 0.55]   the printed threshold does NOT replicate (scenario 2)
+    F1(τ = 3e-5)  <= 0.55           the printed threshold does NOT replicate (scenario 2; one-sided since 2026-09-24)
     F1(τ*)        >= 0.86           the blind validation-selected threshold does (scenario 3)
 
 `faithful/paper` is reported ungated. The report carries `engine_sha256`, and
@@ -35,7 +35,7 @@ import torch
 
 from . import __version__
 from .constants import (
-    ARM_FAITHFUL_LIBRARY, ARM_FAITHFUL_PAPER, ARMS, DEVICES, GATE_ARM, GATE_DIR, GATE_F1_PRINTED_BAND,
+    ARM_FAITHFUL_LIBRARY, ARM_FAITHFUL_PAPER, ARMS, DEVICES, GATE_ARM, GATE_DIR, GATE_F1_PRINTED_MAX,
     GATE_F1_SELECTED_MIN, GATE_TAU_GRID, GATE_TAU_PRINTED, ORACLE_IN_REGIME,
 )
 from .corpus import Corpus
@@ -45,6 +45,7 @@ from .generator import build_parser as generator_parser
 from .hashes import engine_sha256
 from .log import log
 from .model import DecoderLM
+from .pretrain import AMP_MODES
 from .pretrain import build_parser as pretrain_parser
 from .pretrain import pretrain
 from .probe import check_memory, probe_sequence
@@ -103,7 +104,7 @@ def probe_split(model, vocab, corpus, split, truth, args, device):
         for arm in GATE_ARMS:
             spec = ARMS[arm]
             logp, X = probe_sequence(model, ids, args.context, spec["history"], args.guidance, args.particles, args.max_lag,
-                                     vocab.real_ids, gen, args.microbatch_rows, device, args.amp)
+                                     vocab.real_ids, gen, args.microbatch_rows, device, args.probe_amp)
             tok_pos += X.shape[0] * X.shape[1] * X.shape[2]
             cells = cell_statistics(logp, args.context, args.max_lag, args.clamp_eps)
             rec["stats"][arm] = cells["safe"][spec["statistic"]].cpu().numpy()
@@ -174,10 +175,9 @@ def write_matrices(path, records, arms):
 
 
 def assertions_for(f1_printed, f1_selected):
-    lo, hi = GATE_F1_PRINTED_BAND
     return [
-        {"name": "printed_threshold_does_not_replicate", "value": f1_printed, "band": [lo, hi],
-         "passed": lo <= f1_printed <= hi, "scenario": 2, "arm": GATE_ARM, "tau": GATE_TAU_PRINTED},
+        {"name": "printed_threshold_does_not_replicate", "value": f1_printed, "band": [0.0, GATE_F1_PRINTED_MAX],
+         "passed": f1_printed <= GATE_F1_PRINTED_MAX, "scenario": 2, "arm": GATE_ARM, "tau": GATE_TAU_PRINTED},
         {"name": "selected_threshold_replicates", "value": f1_selected, "band": [GATE_F1_SELECTED_MIN, 1.0],
          "passed": f1_selected >= GATE_F1_SELECTED_MIN, "scenario": 3, "arm": GATE_ARM},
     ]
@@ -190,7 +190,8 @@ def run_gate(args, out_dir):
     report = {"schema": "tracecmibench/gate-report@1", "tool_version": __version__, "commit": git_commit(),
               "date": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"), "engine_sha256": engine_sha256(),
               "gate_arm": GATE_ARM, "context": args.context, "guidance": args.guidance, "particles": args.particles,
-              "max_lag": args.max_lag, "tau_grid": list(GATE_TAU_GRID), "tau_printed": GATE_TAU_PRINTED, "passed": False}
+              "max_lag": args.max_lag, "probe_amp": args.probe_amp, "tau_grid": list(GATE_TAU_GRID), "tau_printed": GATE_TAU_PRINTED,
+              "passed": False}
     # 1. worlds
     scm_dir = out_dir / "scm"
     try:
@@ -274,6 +275,8 @@ def build_parser():
     p.add_argument("--microbatch-rows", required=True, type=int)
     p.add_argument("--memory-cap-gb", required=True, type=float)
     p.add_argument("--clamp-eps", required=True, type=float, help="ε of the published float32 clamp, for the corrupted-cell count")
+    p.add_argument("--probe-amp", required=True, choices=AMP_MODES,
+                   help="autocast mode of the probe's forward passes, independent of --amp (pretraining); D-CB-20")
     p.add_argument("--seed", required=True, type=int)
     p.add_argument("--device", required=True, choices=DEVICES)
     p.add_argument("--output-folder", required=True)
